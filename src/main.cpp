@@ -2,6 +2,8 @@
 #include "led.h"
 #include "webserver.h"
 #include <ElegantOTA.h>
+#include <esp_now.h>
+#include <WiFi.h>
 
 static RX5808 rx(PIN_RX5808_RSSI, PIN_RX5808_DATA, PIN_RX5808_SELECT, PIN_RX5808_CLOCK);
 static Config config;
@@ -12,6 +14,7 @@ static LapTimer timer;
 static BatteryMonitor monitor;
 
 static TaskHandle_t xTimerTask = NULL;
+static TaskHandle_t xEspNowTask = NULL;
 
 static void parallelTask(void *pvArgs) {
     for (;;) {

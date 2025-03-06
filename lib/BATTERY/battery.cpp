@@ -35,7 +35,7 @@ uint8_t BatteryMonitor::getBatteryVoltage() {
     measurementIndex = (measurementIndex + 1) % AVERAGING_SIZE;
     uint8_t average =
         map(round(averageSum / AVERAGING_SIZE), 0, 2606, 0, scale) + add; // 3.3v ref accuracy, divider + voltage drop
-    DEBUG("Battery raw:%u, scaled:%u, average:%u\n", raw, scaled, average);
+    // DEBUG("Battery raw:%u, scaled:%u, average:%u\n", raw, scaled, average);
     return average;
 }
 

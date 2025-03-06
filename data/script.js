@@ -13,6 +13,7 @@ const ssidInput = document.getElementById("ssid");
 const pwdInput = document.getElementById("pwd");
 const minLapInput = document.getElementById("minLap");
 const alarmThreshold = document.getElementById("alarmThreshold");
+const elrsBindPhrase = document.getElementById("elrsBindPhrase");
 
 const synth = window.speechSynthesis;
 
@@ -89,6 +90,7 @@ onload = function (e) {
       timer.innerHTML = "00:00:00s";
       clearLaps();
       createRssiChart();
+      elrsBindPhrase.value = config.elrsBindPhrase
       audioEnabled=config.audioEnabled;
       updateAudioEnabled();
     });
@@ -263,6 +265,7 @@ function saveConfig() {
       name: pilotNameInput.value,
       ssid: ssidInput.value,
       pwd: pwdInput.value,
+      elrsBindPhrase: elrsBindPhrase.value,
       audioEnabled: audioEnabled
     }),
   })

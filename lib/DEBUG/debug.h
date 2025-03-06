@@ -1,6 +1,6 @@
 #pragma once
 
-#define SERIAL_BAUD 460800
+#define SERIAL_BAUD 115200
 #define DEBUG_OUT Serial
 
 #ifdef DEBUG_OUT

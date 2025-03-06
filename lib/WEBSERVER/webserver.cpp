@@ -1,12 +1,14 @@
 #include "webserver.h"
 #include <ElegantOTA.h>
 
+#include "debug.h"
+#include "msp.h"
+#include "msptypes.h"
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <LittleFS.h>
+#include <esp_now.h>
 #include <esp_wifi.h>
-
-#include "debug.h"
 
 static const uint8_t DNS_PORT = 53;
 static IPAddress netMsk(255, 255, 255, 0);
@@ -20,6 +22,113 @@ static const char *wifi_ap_ssid_prefix = "PhobosLT";
 static const char *wifi_ap_password = "phoboslt";
 static const char *wifi_ap_address = "10.0.0.1";
 String wifi_ap_ssid;
+esp_now_peer_info_t peerInfo;
+uint8_t targetAddress[6];
+uint8_t uniAddress[6];
+MSP msp;
+
+int sendMSPViaEspnow(mspPacket_t *packet) {
+    int esp_err = -1;
+    uint8_t packetSize = msp.getTotalPacketSize(packet);
+    uint8_t nowDataOutput[packetSize];
+
+    uint8_t result = msp.convertToByteArray(packet, nowDataOutput);
+    DEBUG("Sending MSP data: ");
+    for (uint16_t i = 0; i < packetSize; ++i) {
+        DEBUG("%u ", nowDataOutput[i]);
+    }
+    DEBUG("\n");
+
+    if (!result) {
+        return esp_err;
+    }
+
+    esp_err = esp_now_send(targetAddress, (uint8_t *)&nowDataOutput, packetSize);
+    if (esp_err != ESP_OK) {
+        DEBUG("Error sending ESP-NOW data: %s\n", esp_err_to_name(esp_err));
+    } else {
+        DEBUG("ESP-NOW data sent successfully\n");
+    }
+
+    return esp_err;
+}
+
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+    if (status == ESP_NOW_SEND_SUCCESS)
+        DEBUG("SENT OK\n");
+    else
+        DEBUG("SENT FAIL\n");
+}
+
+mspPacket_t packet;
+void sendMSPOSDMessage(byte subfunction, char *msg = nullptr) {
+    packet.reset();
+    packet.makeCommand();
+    packet.function = MSP_ELRS_SET_OSD;
+    packet.addByte(subfunction);
+
+    if (subfunction == MSP_ELRS_SET_OSD_WRITE) {
+        packet.addByte(3); // row
+        packet.addByte(0); // col
+        // page = (attr & 1) * 256;  HDZero only allows 2 pages of characters (i.e. 512 characters)
+        packet.addByte(0); // attr
+        for (int i = 0; i < strlen(msg); i++) {
+            packet.addByte(msg[i]);
+        }
+    }
+    sendMSPViaEspnow(&packet);
+    usleep(100);
+}
+
+void sendElrsHello(float voltage) {
+    char buf[20];
+    snprintf(buf, sizeof(buf), "TIMER:%0.1fV", voltage);
+    sendMSPOSDMessage(MSP_ELRS_SET_OSD_CLEAR);
+    sendMSPOSDMessage(MSP_ELRS_SET_OSD_WRITE, buf);
+    sendMSPOSDMessage(MSP_ELRS_SET_OSD_SHOW);
+}
+
+void getLapString(uint32_t lapTime, char *output) {
+    uint32_t min = lapTime / 1000 / 60;
+    uint32_t seconds = (lapTime % 60000) / 1000;
+    uint32_t milis = lapTime % 1000;
+
+    sprintf(output, "%02u:%02u.%03u", min, seconds, milis);
+}
+
+void sendElrsEvent(uint32_t lapTime) {
+    char lapTimeMsg[10];
+    getLapString(lapTime, lapTimeMsg);
+
+    char buf[20];
+    snprintf(buf, sizeof(buf), "TIME: %s", lapTimeMsg);
+    DEBUG("Sending ELRS OSD message: %s\n", buf);
+    sendMSPOSDMessage(MSP_ELRS_SET_OSD_CLEAR);
+    sendMSPOSDMessage(MSP_ELRS_SET_OSD_WRITE, buf);
+    sendMSPOSDMessage(MSP_ELRS_SET_OSD_SHOW);
+}
+
+void getBindingUID(char *phrase, uint8_t *bindingUID) {
+    String bindingPhraseFull = String("-DMY_BINDING_PHRASE=\"") + phrase + "\"";
+    int len = bindingPhraseFull.length();
+    char bindingPhrase[len + 1];
+    bindingPhraseFull.toCharArray(bindingPhrase, len + 1);
+
+    unsigned char md5Hash[16];
+    MD5Builder md5;
+    md5.begin();
+    md5.add(bindingPhrase);
+    md5.calculate();
+    md5.getBytes(md5Hash);
+
+    uint8_t uidBytes[6];
+    memcpy(uidBytes, md5Hash, 6);
+    DEBUG("\nBinding phrase uid: ");
+    for (int i = 0; i < 6; i++) {
+        bindingUID[i] = uidBytes[i];
+        DEBUG("%u,", uidBytes[i]);
+    }
+}
 
 void Webserver::init(Config *config, LapTimer *lapTimer, BatteryMonitor *batMonitor, Buzzer *buzzer, Led *l) {
 
@@ -50,22 +159,35 @@ void Webserver::init(Config *config, LapTimer *lapTimer, BatteryMonitor *batMoni
 }
 
 void Webserver::sendRssiEvent(uint8_t rssi) {
-    if (!servicesStarted) return;
+    if (!servicesStarted)
+        return;
     char buf[16];
     snprintf(buf, sizeof(buf), "%u", rssi);
     events.send(buf, "rssi");
 }
 
 void Webserver::sendLaptimeEvent(uint32_t lapTime) {
-    if (!servicesStarted) return;
+    if (!servicesStarted)
+        return;
     char buf[16];
     snprintf(buf, sizeof(buf), "%u", lapTime);
     events.send(buf, "lap");
 }
 
+void SetSoftMACAddress() {
+
+    // MAC address can only be set with unicast, so first byte must be even, not odd
+
+    //   WiFi.mode(WIFI_STA);
+
+    //   WiFi.begin("network-name", "pass-to-network", 1);
+    //   WiFi.disconnect();
+}
+
 void Webserver::handleWebUpdate(uint32_t currentTimeMs) {
     if (timer->isLapAvailable()) {
         sendLaptimeEvent(timer->getLapTime());
+        sendElrsEvent(timer->getLapTime());
     }
 
     if (sendRssi && ((currentTimeMs - rssiSentMs) > WEB_RSSI_SEND_TIMEOUT_MS)) {
@@ -78,29 +200,29 @@ void Webserver::handleWebUpdate(uint32_t currentTimeMs) {
     if (status != lastStatus && wifiMode == WIFI_STA) {
         DEBUG("WiFi status = %u\n", status);
         switch (status) {
-            case WL_NO_SSID_AVAIL:
-            case WL_CONNECT_FAILED:
-            case WL_CONNECTION_LOST:
-                changeTimeMs = currentTimeMs;
-                changeMode = WIFI_AP;
-                break;
-            case WL_DISCONNECTED:  // try reconnection
-                changeTimeMs = currentTimeMs;
-                break;
-            case WL_CONNECTED:
-                buz->beep(200);
-                led->off();
-                wifiConnected = true;
-                break;
-            default:
-                break;
+        case WL_NO_SSID_AVAIL:
+        case WL_CONNECT_FAILED:
+        case WL_CONNECTION_LOST:
+            changeTimeMs = currentTimeMs;
+            changeMode = WIFI_AP;
+            break;
+        case WL_DISCONNECTED: // try reconnection
+            changeTimeMs = currentTimeMs;
+            break;
+        case WL_CONNECTED:
+            buz->beep(200);
+            led->off();
+            wifiConnected = true;
+            break;
+        default:
+            break;
         }
         lastStatus = status;
     }
     if (status != WL_CONNECTED && wifiMode == WIFI_STA && (currentTimeMs - changeTimeMs) > WIFI_CONNECTION_TIMEOUT_MS) {
         changeTimeMs = currentTimeMs;
         if (!wifiConnected) {
-            changeMode = WIFI_AP;  // if we didnt manage to ever connect to wifi network
+            changeMode = WIFI_AP; // if we didnt manage to ever connect to wifi network
         } else {
             DEBUG("WiFi Connection failed, reconnecting\n");
             WiFi.reconnect();
@@ -109,33 +231,66 @@ void Webserver::handleWebUpdate(uint32_t currentTimeMs) {
             led->blink(200);
         }
     }
-    if (changeMode != wifiMode && changeMode != WIFI_OFF && (currentTimeMs - changeTimeMs) > WIFI_RECONNECT_TIMEOUT_MS) {
+    if (changeMode != wifiMode && changeMode != WIFI_OFF &&
+        (currentTimeMs - changeTimeMs) > WIFI_RECONNECT_TIMEOUT_MS) {
         switch (changeMode) {
-            case WIFI_AP:
-                DEBUG("Changing to WiFi AP mode\n");
+        case WIFI_AP:
+            DEBUG("Changing to WiFi AP mode\n");
 
-                WiFi.disconnect();
-                wifiMode = WIFI_AP;
-                WiFi.setHostname(wifi_hostname);  // hostname must be set before the mode is set to STA
-                WiFi.mode(wifiMode);
-                changeTimeMs = currentTimeMs;
-                WiFi.softAPConfig(ipAddress, ipAddress, netMsk);
-                WiFi.softAP(wifi_ap_ssid.c_str(), wifi_ap_password);
-                startServices();
-                buz->beep(1000);
-                led->on(1000);
-                break;
-            case WIFI_STA:
-                DEBUG("Connecting to WiFi network\n");
-                wifiMode = WIFI_STA;
-                WiFi.setHostname(wifi_hostname);  // hostname must be set before the mode is set to STA
-                WiFi.mode(wifiMode);
-                changeTimeMs = currentTimeMs;
-                WiFi.begin(conf->getSsid(), conf->getPassword());
-                startServices();
-                led->blink(200);
-            default:
-                break;
+            WiFi.disconnect();
+            WiFi.setTxPower(WIFI_POWER_19_5dBm);
+            WiFi.setHostname(wifi_hostname);
+            WiFi.softAPConfig(ipAddress, ipAddress, netMsk);
+            esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+            esp_wifi_set_protocol(WIFI_IF_STA,
+                                  WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N | WIFI_PROTOCOL_LR);
+            WiFi.softAP(wifi_ap_ssid.c_str(), wifi_ap_password);
+            WiFi.mode(WIFI_AP_STA);
+            if (conf->getElrsBindPhrase()[0] != 0) {
+
+                DEBUG("Enabling ESP NOW for backpack\n");
+                uint8_t bindingUID[6];
+                getBindingUID(conf->getElrsBindPhrase(), bindingUID);
+
+                memcpy(targetAddress, bindingUID, sizeof(targetAddress));
+                memcpy(uniAddress, bindingUID, sizeof(uniAddress));
+                uniAddress[0] = uniAddress[0] & ~0x01;
+
+                if (esp_now_init() != 0) {
+                    DEBUG("Error initializing ESP-NOW\n");
+                    return;
+                }
+                esp_wifi_set_mac(WIFI_IF_STA, uniAddress);
+                memset(&peerInfo, 0, sizeof(peerInfo));
+                memcpy(peerInfo.peer_addr, targetAddress, 6);
+                peerInfo.channel = 1;
+                peerInfo.encrypt = false;
+                if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+                    DEBUG("ESP-NOW failed to add peer\n");
+                    return;
+                }
+
+                esp_now_register_send_cb(OnDataSent);
+                float voltage = (float)monitor->getBatteryVoltage() / 10;
+                sendElrsHello(voltage);
+            }
+
+            DEBUG("Start services\n");
+            startServices();
+            buz->beep(1000);
+            led->on(1000);
+            break;
+        case WIFI_STA:
+            DEBUG("Connecting to WiFi network\n");
+            wifiMode = WIFI_STA;
+            WiFi.setHostname(wifi_hostname); // hostname must be set before the mode is set to STA
+            WiFi.mode(wifiMode);
+            changeTimeMs = currentTimeMs;
+            WiFi.begin(conf->getSsid(), conf->getPassword());
+            startServices();
+            led->blink(200);
+        default:
+            break;
         }
 
         changeMode = WIFI_OFF;
@@ -179,14 +334,14 @@ static bool captivePortal(AsyncWebServerRequest *request) {
 }
 
 static void handleRoot(AsyncWebServerRequest *request) {
-    if (captivePortal(request)) {  // If captive portal redirect instead of displaying the page.
+    if (captivePortal(request)) { // If captive portal redirect instead of displaying the page.
         return;
     }
     request->send(LittleFS, "/index.html", "text/html");
 }
 
 static void handleNotFound(AsyncWebServerRequest *request) {
-    if (captivePortal(request)) {  // If captive portal redirect instead of displaying the error page.
+    if (captivePortal(request)) { // If captive portal redirect instead of displaying the error page.
         return;
     }
     String message = F("File Not Found\n\n");
@@ -239,8 +394,10 @@ void Webserver::startServices() {
     startLittleFS();
 
     server.on("/", handleRoot);
-    server.on("/generate204", handleRoot);  // handle Andriod phones doing shit to detect if there is 'real' internet and possibly dropping conn.
-    server.on("/generate_204", handleRoot);  // handle Andriod phones doing shit to detect if there is 'real' internet and possibly dropping conn.
+    server.on("/generate204", handleRoot); // handle Andriod phones doing shit to detect if there is 'real' internet and
+                                           // possibly dropping conn.
+    server.on("/generate_204", handleRoot); // handle Andriod phones doing shit to detect if there is 'real' internet
+                                            // and possibly dropping conn.
     server.on("/gen_204", handleRoot);
     server.on("/library/test/success.html", handleRoot);
     server.on("/hotspot-detect.html", handleRoot);
@@ -248,14 +405,12 @@ void Webserver::startServices() {
     server.on("/check_network_status.txt", handleRoot);
     server.on("/ncsi.txt", handleRoot);
     server.on("/fwlink", handleRoot);
-
     server.on("/status", [this](AsyncWebServerRequest *request) {
         char buf[1024];
         char configBuf[256];
         conf->toJsonString(configBuf);
         float voltage = (float)monitor->getBatteryVoltage() / 10;
-        const char *format =
-            "\
+        const char *format = "\
 Heap:\n\
 \tFree:\t%i\n\
 \tMin:\t%i\n\
@@ -276,10 +431,11 @@ EEPROM:\n\
 %s\n\
 Battery Voltage:\t%0.1fv";
 
-        snprintf(buf, sizeof(buf), format,
-                 ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getHeapSize(), ESP.getMaxAllocHeap(), LittleFS.usedBytes(), LittleFS.totalBytes(),
-                 ESP.getChipModel(), ESP.getChipRevision(), ESP.getChipCores(), ESP.getSdkVersion(), ESP.getFlashChipSize(), ESP.getFlashChipSpeed() / 1000000, getCpuFrequencyMhz(),
-                 WiFi.localIP().toString().c_str(), WiFi.macAddress().c_str(), configBuf, voltage);
+        snprintf(buf, sizeof(buf), format, ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getHeapSize(),
+                 ESP.getMaxAllocHeap(), LittleFS.usedBytes(), LittleFS.totalBytes(), ESP.getChipModel(),
+                 ESP.getChipRevision(), ESP.getChipCores(), ESP.getSdkVersion(), ESP.getFlashChipSize(),
+                 ESP.getFlashChipSpeed() / 1000000, getCpuFrequencyMhz(), WiFi.localIP().toString().c_str(),
+                 WiFi.macAddress().c_str(), configBuf, voltage);
         request->send(200, "text/plain", buf);
         // led->on(200);
     });
@@ -313,16 +469,17 @@ Battery Voltage:\t%0.1fv";
         led->on(200);
     });
 
-    AsyncCallbackJsonWebHandler *configJsonHandler = new AsyncCallbackJsonWebHandler("/config", [this](AsyncWebServerRequest *request, JsonVariant &json) {
-        JsonObject jsonObj = json.as<JsonObject>();
+    AsyncCallbackJsonWebHandler *configJsonHandler =
+        new AsyncCallbackJsonWebHandler("/config", [this](AsyncWebServerRequest *request, JsonVariant &json) {
+            JsonObject jsonObj = json.as<JsonObject>();
 #ifdef DEBUG_OUT
-        serializeJsonPretty(jsonObj, DEBUG_OUT);
-        DEBUG("\n");
+            serializeJsonPretty(jsonObj, DEBUG_OUT);
+            DEBUG("\n");
 #endif
-        conf->fromJson(jsonObj);
-        request->send(200, "application/json", "{\"status\": \"OK\"}");
-        led->on(200);
-    });
+            conf->fromJson(jsonObj);
+            request->send(200, "application/json", "{\"status\": \"OK\"}");
+            led->on(200);
+        });
 
     server.serveStatic("/", LittleFS, "/").setCacheControl("max-age=600");
 

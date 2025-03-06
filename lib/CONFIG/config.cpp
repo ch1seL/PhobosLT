@@ -1,7 +1,5 @@
 #include "config.h"
-
 #include <EEPROM.h>
-
 #include "debug.h"
 
 void Config::init(void) {
@@ -59,6 +57,7 @@ void Config::toJson(AsyncResponseStream& destination) {
     config["name"] = conf.pilotName;
     config["ssid"] = conf.ssid;
     config["pwd"] = conf.password;
+    config["elrsBindPhrase"] = conf.elrsBindPhrase;
     config["audioEnabled"] = conf.audioEnabled;
     serializeJson(config, destination);
 }
@@ -75,6 +74,7 @@ void Config::toJsonString(char* buf) {
     config["name"] = conf.pilotName;
     config["ssid"] = conf.ssid;
     config["pwd"] = conf.password;
+    config["elrsBindPhrase"] = conf.elrsBindPhrase;
     config["audioEnabled"] = conf.audioEnabled;
     serializeJsonPretty(config, buf, 256);
 }
@@ -120,6 +120,10 @@ void Config::fromJson(JsonObject source) {
         strlcpy(conf.password, source["pwd"] | "", sizeof(conf.password));
         modified = true;
     }
+    if (source["elrsBindPhrase"] != conf.elrsBindPhrase) {
+        strlcpy(conf.elrsBindPhrase, source["elrsBindPhrase"] | "", sizeof(conf.elrsBindPhrase));
+        modified = true;
+    }
     if (source["audioEnabled"] != conf.audioEnabled) {
         conf.audioEnabled = source["audioEnabled"];
         modified = true;
@@ -154,6 +158,10 @@ char* Config::getPassword() {
     return conf.password;
 }
 
+char* Config::getElrsBindPhrase() {
+    return conf.elrsBindPhrase;
+}
+
 void Config::setDefaults(void) {
     DEBUG("Setting EEPROM defaults\n");
     // Reset everything to 0/false and then just set anything that zero is not appropriate
@@ -170,6 +178,7 @@ void Config::setDefaults(void) {
     strlcpy(conf.ssid, "", sizeof(conf.ssid));
     strlcpy(conf.password, "", sizeof(conf.password));
     strlcpy(conf.pilotName, "", sizeof(conf.pilotName));
+    strlcpy(conf.elrsBindPhrase, "", sizeof(conf.elrsBindPhrase));
     modified = true;
     write();
 }
