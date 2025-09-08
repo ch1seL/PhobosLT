@@ -19,9 +19,9 @@
         </div>
       </nav>
       <ul class="nav-links">
-        <li><a id="nav-link-config" class="tablinks active" onclick="openTab(event, 'config')">Configuration</a></li>
+        <li><a id="nav-link-config" class="tablinks active" onclick="openTab(event, 'config')">Config</a></li>
         <li><a id="nav-link-race" class="tablinks" onclick="openTab(event, 'race')">Race</a></li>
-        <li><a id="nav-link-calib" class="tablinks" onclick="openTab(event, 'calib')">Calibration</a></li>
+        <li><a id="nav-link-calib" class="tablinks" onclick="openTab(event, 'calib')">Calib</a></li>
         <li><a id="nav-link-ota" class="tablinks" onclick="openTab(event, 'ota')">Update</a></li>
       </ul>
     </header>
@@ -73,8 +73,14 @@
             <label for="alarmThreshold">Low Battery Alarm:</label>
             <div class="input-with-value">
               <span class="val" id="volt">3.6v</span>
-              (<span class="val" id="bvolt"></span>)
               <input type="range" id="alarmThreshold" step="0.1" min="2.6" max="8.4" oninput="updateAlarmThreshold(this,value)" />
+            </div>
+          </div>
+
+          <div class="config-item">
+            <label for="alarmThreshold">Current Battery Voltage:</label>
+            <div class="input-with-value">
+              <span class="val" id="bvolt">3.6v</span>
             </div>
           </div>
 
