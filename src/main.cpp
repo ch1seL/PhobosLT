@@ -17,7 +17,7 @@ static TaskHandle_t xTimerTask = NULL;
 static TaskHandle_t xEspNowTask = NULL;
 
 static void parallelTask(void *pvArgs) {
-    for (;;) {
+    while(1) {
         uint32_t currentTimeMs = millis();
         buzzer.handleBuzzer(currentTimeMs);
         led.handleLed(currentTimeMs);
@@ -28,11 +28,7 @@ static void parallelTask(void *pvArgs) {
         buzzer.handleBuzzer(currentTimeMs);
         led.handleLed(currentTimeMs);
     }
-}
-
-static void initParallelTask() {
-    disableCore0WDT();
-    xTaskCreatePinnedToCore(parallelTask, "parallelTask", 3000, NULL, 0, &xTimerTask, 0);
+    vTaskDelete(NULL);
 }
 
 void setup() {
@@ -46,7 +42,8 @@ void setup() {
     ws.init(&config, &timer, &monitor, &buzzer, &led);
     led.on(400);
     buzzer.beep(200);
-    initParallelTask();
+    disableCore0WDT();
+    xTaskCreatePinnedToCore(parallelTask, "parallelTask", 3000, NULL, 0, &xTimerTask, 0);
 }
 
 void loop() {
