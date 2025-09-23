@@ -91,7 +91,7 @@ onload = function (e) {
       clearLaps();
       createRssiChart();
       elrsBindPhrase.value = config.elrsBindPhrase
-      audioEnabled=config.audioEnabled;
+      audioEnabled = config.audioEnabled;
       updateAudioEnabled();
     });
 };
@@ -423,13 +423,13 @@ function queueSpeak(obj, suppressDot = false) {
   if (!audioEnabled) {
     return;
   }
-  if (suppressDot){
+  if (suppressDot) {
     obj = obj.replace('.', ' ')
   }
   speakObjsQueue.push(obj);
 }
 
-function updateAudioEnabled () {
+function updateAudioEnabled() {
   switchAudioButton.textContent = audioEnabled ? "Disable voice" : "Enable voice";
   if (!audioEnabled)
     speakObjsQueue = [];

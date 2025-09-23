@@ -1,7 +1,5 @@
 #include "battery.h"
-
 #include <Arduino.h>
-
 #include "debug.h"
 
 void BatteryMonitor::init(uint8_t pin, uint8_t batScale, uint8_t batAdd, Buzzer *buzzer, Led *l) {

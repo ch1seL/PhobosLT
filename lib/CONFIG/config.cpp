@@ -1,6 +1,6 @@
 #include "config.h"
-#include <EEPROM.h>
 #include "debug.h"
+#include <EEPROM.h>
 
 void Config::init(void) {
     if (sizeof(laptimer_config_t) > EEPROM_RESERVED_SIZE) {
@@ -8,8 +8,8 @@ void Config::init(void) {
         return;
     }
 
-    EEPROM.begin(EEPROM_RESERVED_SIZE);  // Size of EEPROM
-    load();                              // Override default settings from EEPROM
+    EEPROM.begin(EEPROM_RESERVED_SIZE); // Size of EEPROM
+    load();                             // Override default settings from EEPROM
 
     checkTimeMs = millis();
 
@@ -32,7 +32,8 @@ void Config::load(void) {
 }
 
 void Config::write(void) {
-    if (!modified) return;
+    if (!modified)
+        return;
 
     DEBUG("Writing to EEPROM\n");
 
@@ -44,7 +45,7 @@ void Config::write(void) {
     modified = false;
 }
 
-void Config::toJson(AsyncResponseStream& destination) {
+void Config::toJson(AsyncResponseStream &destination) {
     // Use https://arduinojson.org/v6/assistant to estimate memory
     JsonDocument config;
     config["freq"] = conf.frequency;
@@ -62,7 +63,7 @@ void Config::toJson(AsyncResponseStream& destination) {
     serializeJson(config, destination);
 }
 
-void Config::toJsonString(char* buf) {
+void Config::toJsonString(char *buf) {
     JsonDocument config;
     config["freq"] = conf.frequency;
     config["minLap"] = conf.minLap;
@@ -150,15 +151,15 @@ uint8_t Config::getExitRssi() {
     return conf.exitRssi;
 }
 
-char* Config::getSsid() {
+char *Config::getSsid() {
     return conf.ssid;
 }
 
-char* Config::getPassword() {
+char *Config::getPassword() {
     return conf.password;
 }
 
-char* Config::getElrsBindPhrase() {
+char *Config::getElrsBindPhrase() {
     return conf.elrsBindPhrase;
 }
 
