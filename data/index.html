@@ -62,7 +62,7 @@
           </div>
 
           <div class="config-item">
-            <label for="minLap">Minimum Lap Time:</label>
+            <label for="minLap">Min Lap Time:</label>
             <div class="input-with-value">
               <span class="val">10.0s</span>
               <input type="range" id="minLap" step="0.5" min="1" max="10" oninput="updateMinLap(this,value)" />
@@ -70,7 +70,7 @@
           </div>
 
           <div class="config-item">
-            <label for="alarmThreshold">Low Battery Alarm:</label>
+            <label for="alarmThreshold">Low Bat Alarm:</label>
             <div class="input-with-value">
               <span class="val" id="volt">3.6v</span>
               <input type="range" id="alarmThreshold" step="0.1" min="2.6" max="8.4" oninput="updateAlarmThreshold(this,value)" />
@@ -78,7 +78,7 @@
           </div>
 
           <div class="config-item">
-            <label for="alarmThreshold">Current Battery Voltage:</label>
+            <label for="alarmThreshold">Current Voltage:</label>
             <div class="input-with-value">
               <span class="val" id="bvolt">3.6v</span>
             </div>
@@ -117,14 +117,16 @@
             <label for="pwd">WiFi Password:</label>
             <input type="password" id="pwd" maxlength="32" />
           </div>
+
+          <div class="config-item">
+            <label for="elrs">Elrs bind phrase:</label>
+            <input type="text" id="elrsBindPhrase" maxlength="32" />
+          </div>
+
           <div>
             <button id="fullScreenButton">Full screen</button>
             <label>
               <input type="checkbox" id="wakeLockCheckbox"> Activate Wake Lock</label>
-          </div>
-          <div class="config-item">
-            <label for="elrs">Elrs bind phrase</label>
-            <input type="text" id="elrsBindPhrase" maxlength="32" />
           </div>
         </div>
         <button id="switchAudioButton" onclick="switchAudio()">Enable voice</button>
@@ -154,15 +156,15 @@
         <div>
           <canvas id="rssiChart"></canvas>
         </div>
-        <div class="config-item">
-          <label for="enter">Enter RSSI:</label>
+        <div class="config-item config-rssi">
+          <label for="enter">Enter:</label>
           <div class="input-with-value">
             <span id="enterSpan" class="val">120</span>
             <input type="range" min="50" max="255" step="1" id="enter" value="120" oninput="updateEnterRssi(this,value)" />
           </div>
         </div>
-        <div class="config-item">
-          <label for="exit">Exit RSSI:</label>
+        <div class="config-item config-rssi">
+          <label for="exit">Exit:</label>
           <div class="input-with-value">
             <span id="exitSpan" class="val">100</span>
             <input type="range" min="50" max="255" step="1" id="exit" value="100" oninput="updateExitRssi(this,value)" />

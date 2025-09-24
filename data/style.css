@@ -101,7 +101,12 @@ main {
 }
 
 .config-item label {
-  min-width: 170px;
+  min-width: 140px;
+  font-weight: bold;
+}
+
+.config-rssi label {
+  min-width: 50px;
   font-weight: bold;
 }
 
@@ -127,7 +132,7 @@ main {
 }
 
 .input-with-value .val {
-  width: 35px;
+  width: auto;
   text-align: left;
 }
 
