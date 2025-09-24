@@ -68,8 +68,8 @@ void sendMSPOSDMessage(byte subfunction, char *msg = nullptr) {
     packet.addByte(subfunction);
 
     if (subfunction == MSP_ELRS_SET_OSD_WRITE) {
-        packet.addByte(3); // row
-        packet.addByte(0); // col
+        packet.addByte(4); // row
+        packet.addByte(1); // col
         // page = (attr & 1) * 256;  HDZero only allows 2 pages of characters (i.e. 512 characters)
         packet.addByte(0); // attr
         for (int i = 0; i < strlen(msg); i++) {
@@ -89,19 +89,17 @@ void sendElrsHello(float voltage) {
 }
 
 void getLapString(uint32_t lapTime, char *output) {
-    uint32_t min = lapTime / 1000 / 60;
-    uint32_t seconds = (lapTime % 60000) / 1000;
+    uint32_t seconds = lapTime / 1000;
     uint32_t milis = lapTime % 1000;
 
-    sprintf(output, "%02u:%02u.%03u", min, seconds, milis);
+    sprintf(output, "%02u.%03u", seconds, milis);
 }
 
 void sendElrsEvent(uint32_t lapTime) {
     char lapTimeMsg[10];
     getLapString(lapTime, lapTimeMsg);
-
     char buf[20];
-    snprintf(buf, sizeof(buf), "TIME: %s", lapTimeMsg);
+    snprintf(buf, sizeof(buf), "LAP:%s", lapTimeMsg);
     DEBUG("Sending ELRS OSD message: %s\n", buf);
     sendMSPOSDMessage(MSP_ELRS_SET_OSD_CLEAR);
     sendMSPOSDMessage(MSP_ELRS_SET_OSD_WRITE, buf);
@@ -131,7 +129,6 @@ void getBindingUID(char *phrase, uint8_t *bindingUID) {
 }
 
 void Webserver::init(Config *config, LapTimer *lapTimer, BatteryMonitor *batMonitor, Buzzer *buzzer, Led *l) {
-
     ipAddress.fromString(wifi_ap_address);
 
     conf = config;

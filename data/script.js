@@ -68,31 +68,34 @@ onload = function (e) {
     .then((response) => response.json())
     .then((config) => {
       console.log(config);
-      setBandChannelIndex(config.freq);
+      
       minLapInput.value = (parseFloat(config.minLap) / 10).toFixed(1);
-      updateMinLap(minLapInput, minLapInput.value);
       alarmThreshold.value = (parseFloat(config.alarm) / 10).toFixed(1);
-      updateAlarmThreshold(alarmThreshold, alarmThreshold.value);
       announcerSelect.selectedIndex = config.anType;
       announcerRateInput.value = (parseFloat(config.anRate) / 10).toFixed(1);
-      updateAnnouncerRate(announcerRateInput, announcerRateInput.value);
       enterRssiInput.value = config.enterRssi;
-      updateEnterRssi(enterRssiInput, enterRssiInput.value);
       exitRssiInput.value = config.exitRssi;
-      updateExitRssi(exitRssiInput, exitRssiInput.value);
       pilotNameInput.value = config.name;
       ssidInput.value = config.ssid;
       pwdInput.value = config.pwd;
-      populateFreqOutput();
-      stopRaceButton.disabled = true;
-      startRaceButton.disabled = false;
-      clearInterval(timerInterval);
-      timer.innerHTML = "00:00:00s";
-      clearLaps();
-      createRssiChart();
       elrsBindPhrase.value = config.elrsBindPhrase
       audioEnabled = config.audioEnabled;
+
+      stopRaceButton.disabled = true;
+      startRaceButton.disabled = false;
+      timer.innerHTML = "00:00:00s";
+
+      setBandChannelIndex(config.freq);
+      updateMinLap(minLapInput, minLapInput.value);
+      updateAlarmThreshold(alarmThreshold, alarmThreshold.value);
+      updateAnnouncerRate(announcerRateInput, announcerRateInput.value);
+      updateEnterRssi(enterRssiInput, enterRssiInput.value);
+      updateExitRssi(exitRssiInput, exitRssiInput.value);
       updateAudioEnabled();
+      populateFreqOutput();
+      clearInterval(timerInterval);
+      clearLaps();
+      createRssiChart();
     });
 };
 
@@ -286,7 +289,10 @@ bcf.addEventListener("change", function handleChange(event) {
 
 function updateAnnouncerRate(obj, value) {
   announcerRate = parseFloat(value);
-  $(obj).parent().find("span").text(announcerRate.toFixed(1));
+  $(obj)
+    .parent()
+    .find("span")
+    .text(announcerRate.toFixed(1));
 }
 
 function updateMinLap(obj, value) {
@@ -299,7 +305,7 @@ function updateMinLap(obj, value) {
 function updateAlarmThreshold(obj, value) {
   $(obj)
     .parent()
-    .find("#volt")
+    .find("span")
     .text(parseFloat(value).toFixed(1) + "v");
 }
 

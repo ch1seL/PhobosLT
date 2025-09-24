@@ -42,6 +42,7 @@ void setup() {
     ws.init(&config, &timer, &monitor, &buzzer, &led);
     led.on(400);
     buzzer.beep(200);
+    
     disableCore0WDT();
     xTaskCreatePinnedToCore(parallelTask, "parallelTask", 3000, NULL, 0, &xTimerTask, 0);
 }
