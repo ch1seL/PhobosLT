@@ -1,3 +1,5 @@
+localStorage.setItem("theme", "light");
+
 const bcf = document.getElementById("bandChannelFreq");
 const bandSelect = document.getElementById("bandSelect");
 const channelSelect = document.getElementById("channelSelect");
@@ -14,9 +16,17 @@ const pwdInput = document.getElementById("pwd");
 const minLapInput = document.getElementById("minLap");
 const alarmThreshold = document.getElementById("alarmThreshold");
 const elrsBindPhrase = document.getElementById("elrsBindPhrase");
+const config = document.getElementById("config");
+const race = document.getElementById("race");
+const calib = document.getElementById("calib");
+const ota = document.getElementById("ota");
+const timer = document.getElementById("timer");
+const startRaceButton = document.getElementById("startRaceButton");
+const stopRaceButton = document.getElementById("stopRaceButton");
+const batteryVoltageDisplay = document.getElementById("bvolt");
+const switchAudioButton = document.getElementById("switchAudioButton");
 
 const synth = window.speechSynthesis;
-
 const freqLookup = [
   [5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725],
   [5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866],
@@ -26,36 +36,20 @@ const freqLookup = [
   [5362, 5399, 5436, 5473, 5510, 5547, 5584, 5621],
 ];
 
-const config = document.getElementById("config");
-const race = document.getElementById("race");
-const calib = document.getElementById("calib");
-const ota = document.getElementById("ota");
-
-var enterRssi = 120,
-  exitRssi = 100;
+var enterRssi = 120;
+var exitRssi = 100;
 var frequency = 0;
 var announcerRate = 1.0;
-
 var lapNo = -1;
 var lapTimes = [];
-
 var timerInterval;
-const timer = document.getElementById("timer");
-const startRaceButton = document.getElementById("startRaceButton");
-const stopRaceButton = document.getElementById("stopRaceButton");
-const batteryVoltageDisplay = document.getElementById("bvolt");
-const switchAudioButton = document.getElementById("switchAudioButton");
-
-const rssiBuffer = [];
 var rssiValue = 0;
 var rssiSending = false;
 var rssiChart;
-var crossing = false;
 var rssiSeries = new TimeSeries();
 var rssiCrossingSeries = new TimeSeries();
-var maxRssiValue = enterRssi + 10;
-var minRssiValue = exitRssi - 10;
-
+var maxRssi = enterRssi + 10;
+var minRssi = exitRssi - 10;
 var audioEnabled = false;
 var speakObjsQueue = [];
 
@@ -68,7 +62,7 @@ onload = function (e) {
     .then((response) => response.json())
     .then((config) => {
       console.log(config);
-      
+
       minLapInput.value = (parseFloat(config.minLap) / 10).toFixed(1);
       alarmThreshold.value = (parseFloat(config.alarm) / 10).toFixed(1);
       announcerSelect.selectedIndex = config.anType;
@@ -109,78 +103,116 @@ function getBatteryVoltage() {
     });
 }
 
+function rssiStartSending() {
+  fetch("/timer/rssiStart", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+  })
+    .then((response) => {
+      if (response.ok) {
+        rssiSending = true;
+        return response.json();
+      }
+    })
+    .then((response) => console.log("/timer/rssiStart:" + JSON.stringify(response)));
+}
+
+function rssiStopSending() {
+  fetch("/timer/rssiStop", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+  })
+    .then((response) => {
+      if (response.ok) {
+        rssiSending = false;
+        return response.json();
+      }
+      throw "bad response";
+    })
+    .then((response) => console.log("/timer/rssiStop:" + JSON.stringify(response)));
+}
+
 setInterval(getBatteryVoltage, 2000);
 
-function addRssiPoint() {
+function addRssiPoint(rssi) {
+  if (calib.style.display == "none") {
+    rssiStopSending();
+  }
+
+  if (!rssiChart) {
+    return
+  }
+
   if (calib.style.display != "none") {
     rssiChart.start();
-    if (rssiBuffer.length > 0) {
-      rssiValue = parseInt(rssiBuffer.shift());
-      if (crossing && rssiValue < exitRssi) {
-        crossing = false;
-      } else if (!crossing && rssiValue > enterRssi) {
-        crossing = true;
-      }
-      maxRssiValue = Math.max(maxRssiValue, rssiValue);
-      minRssiValue = Math.min(minRssiValue, rssiValue);
-    }
 
-    // update horizontal lines and min max values
-    rssiChart.options.horizontalLines = [
-      { color: "hsl(8.2, 86.5%, 53.7%)", lineWidth: 1.7, value: enterRssi }, // red
-      { color: "hsl(25, 85%, 55%)", lineWidth: 1.7, value: exitRssi }, // orange
-    ];
-
-    rssiChart.options.maxValue = Math.max(maxRssiValue, enterRssi + 10);
-
-    rssiChart.options.minValue = Math.max(0, Math.min(minRssiValue, exitRssi - 10));
+    maxRssi = Math.max(maxRssi, rssi);
+    minRssi = Math.min(minRssi, rssi);
+    rssiChart.options.maxValue = Math.max(maxRssi + 5, enterRssi + 10);
+    rssiChart.options.minValue = Math.max(0, Math.min(minRssi, exitRssi - 10));
 
     var now = Date.now();
-    rssiSeries.append(now, rssiValue);
-    if (crossing) {
+    rssiSeries.append(now, rssi);
+    if (rssi > enterRssi) {
       rssiCrossingSeries.append(now, 256);
     } else {
       rssiCrossingSeries.append(now, -10);
     }
   } else {
     rssiChart.stop();
-    maxRssiValue = enterRssi + 10;
-    minRssiValue = exitRssi - 10;
+    maxRssi = enterRssi + 10;
+    minRssi = exitRssi - 10;
   }
 }
 
-setInterval(addRssiPoint, 200);
+function updateHorisontalLines() {
+  if (rssiChart) {
+    rssiChart.options.horizontalLines = [
+      { color: "hsl(8.2, 86.5%, 53.7%)", lineWidth: 1.7, value: enterRssi }, // red
+      { color: "hsl(25, 85%, 55%)", lineWidth: 1.7, value: exitRssi }, // orange
+    ];
+  }
+}
 
 function createRssiChart() {
   rssiChart = new SmoothieChart({
     responsive: true,
     millisPerPixel: 50,
     grid: {
+      fillStyle: '#ffffff',
       strokeStyle: "rgba(255,255,255,0.25)",
       sharpLines: true,
-      verticalSections: 0,
-      borderVisible: false,
+      verticalSections: 0
     },
     labels: {
-      precision: 0,
+      fillStyle: '#000000',
+      fontSize: 13,
+      precision: 0
     },
     maxValue: 1,
-    minValue: 0,
+    minValue: 0
   });
   rssiChart.addTimeSeries(rssiSeries, {
     lineWidth: 1.7,
     strokeStyle: "hsl(214, 53%, 60%)",
-    fillStyle: "hsla(214, 53%, 60%, 0.4)",
+    fillStyle: "hsla(214, 53%, 60%, 0.4)"
   });
   rssiChart.addTimeSeries(rssiCrossingSeries, {
     lineWidth: 1.7,
     strokeStyle: "none",
-    fillStyle: "hsla(136, 71%, 70%, 0.3)",
+    fillStyle: "hsla(136, 71%, 70%, 0.3)"
   });
   rssiChart.streamTo(document.getElementById("rssiChart"), 200);
+  updateHorisontalLines()
 }
 
-function openTab(evt, tabName) {
+function openTab(obj, tabName) {
   // Declare all variables
   var i, tabcontent, tablinks;
 
@@ -198,39 +230,19 @@ function openTab(evt, tabName) {
 
   // Show the current tab, and add an "active" class to the button that opened the tab
   document.getElementById(tabName).style.display = "block";
-  evt.currentTarget.className += " active";
+  obj.currentTarget.className += " active";
 
   // if event comes from calibration tab, signal to start sending RSSI events
-  if (tabName === "calib" && !rssiSending) {
-    fetch("/timer/rssiStart", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => {
-        if (response.ok) rssiSending = true;
-        return response.json();
-      })
-      .then((response) => console.log("/timer/rssiStart:" + JSON.stringify(response)));
+  if (tabName === "calib") {
+    if (!rssiSending) {
+      rssiStartSending();
+    }
   } else if (rssiSending) {
-    fetch("/timer/rssiStop", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => {
-        if (response.ok) rssiSending = false;
-        return response.json();
-      })
-      .then((response) => console.log("/timer/rssiStop:" + JSON.stringify(response)));
+    rssiStopSending();
   }
 }
 
-function updateEnterRssi(obj, value) {
+function updateEnterRssi(_, value) {
   enterRssi = parseInt(value);
   enterRssiSpan.textContent = enterRssi;
   if (enterRssi <= exitRssi) {
@@ -238,9 +250,10 @@ function updateEnterRssi(obj, value) {
     exitRssiInput.value = exitRssi;
     exitRssiSpan.textContent = exitRssi;
   }
+  updateHorisontalLines()
 }
 
-function updateExitRssi(obj, value) {
+function updateExitRssi(_, value) {
   exitRssi = parseInt(value);
   exitRssiSpan.textContent = exitRssi;
   if (exitRssi >= enterRssi) {
@@ -248,6 +261,7 @@ function updateExitRssi(obj, value) {
     enterRssiInput.value = enterRssi;
     enterRssiSpan.textContent = enterRssi;
   }
+  updateHorisontalLines()
 }
 
 function saveConfig() {
@@ -556,11 +570,9 @@ if (!!window.EventSource) {
   source.addEventListener(
     "rssi",
     function (e) {
-      rssiBuffer.push(e.data);
-      if (rssiBuffer.length > 10) {
-        rssiBuffer.shift();
-      }
-      console.log("rssi", e.data, "buffer size", rssiBuffer.length);
+      var rssi = parseInt(e.data);
+      addRssiPoint(rssi)
+      console.debug("rssi:", rssi);
     },
     false
   );
@@ -570,7 +582,7 @@ if (!!window.EventSource) {
     function (e) {
       var lap = (parseFloat(e.data) / 1000).toFixed(2);
       addLap(lap);
-      console.log("lap raw:", e.data, " formatted:", lap);
+      console.debug("lap raw:", e.data, " formatted:", lap);
     },
     false
   );

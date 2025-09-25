@@ -187,8 +187,8 @@ void Webserver::handleWebUpdate(uint32_t currentTimeMs) {
         sendElrsEvent(timer->getLapTime());
     }
 
-    if (sendRssi && ((currentTimeMs - rssiSentMs) > WEB_RSSI_SEND_TIMEOUT_MS)) {
-        sendRssiEvent(timer->getRssi());
+    if (sendRssi && ((currentTimeMs - rssiSentMs) > WEB_RSSI_SEND_INTERVAL_MS)) {
+        sendRssiEvent(timer->getChartRssi());
         rssiSentMs = currentTimeMs;
     }
 
