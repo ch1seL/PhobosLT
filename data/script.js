@@ -1,4 +1,4 @@
-localStorage.setItem("theme", "light");
+if (!localStorage.getItem("theme")) localStorage.setItem("theme", "light");
 
 const bcf = document.getElementById("bandChannelFreq");
 const bandSelect = document.getElementById("bandSelect");
